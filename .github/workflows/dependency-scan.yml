@@ -20,12 +20,6 @@ jobs:
     name: Container dependency audit
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-
     strategy:
       fail-fast: false
       matrix:
@@ -43,7 +37,7 @@ jobs:
       - name: Scan upstream image dependency
         id: audit
         continue-on-error: true
-        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
           scan-type: image
           image-ref: ${{ matrix.image }}
