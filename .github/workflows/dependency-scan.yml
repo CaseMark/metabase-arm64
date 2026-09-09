@@ -16,38 +16,57 @@ permissions:
   contents: read
 
 jobs:
-  osv-scan:
-    name: OSV dependency scan
+  image-audit:
+    name: Container dependency audit
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
-      - name: Scan committed dependency manifests
-        id: osv
-        continue-on-error: true
-        uses: google/osv-scanner-action/osv-scanner-action@c51854704019a247608d928f370c98740469d4b5 # v2.3.5
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: metabase
+            image: metabase/metabase
+          - name: metabase-arm64
+            image: stephaneturquay/metabase-arm64
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          scan-args: |-
-            --output=dependency-scan-results.json
-            --format=json
-            --recursive
-            ./
+          persist-credentials: false
 
-      - name: Retain scan results
+      - name: Scan upstream image dependency
+        id: audit
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
+        with:
+          scan-type: image
+          image-ref: ${{ matrix.image }}
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: false
+          format: json
+          output: dependency-scan-results.json
+          exit-code: "1"
+          timeout: 15m0s
+
+      - name: Retain audit evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: osv-dependency-scan-${{ github.sha }}
-          path: dependency-scan-results.json
+          name: container-dependency-audit-${{ matrix.name }}-${{ github.sha }}
+          path: |
+            dependency-scan-results.json
           if-no-files-found: error
           retention-days: 30
 
       - name: Enforce vulnerability gate
-        if: steps.osv.outcome != 'success'
+        if: steps.audit.outcome != 'success'
         run: |
-          echo "OSV-Scanner reported vulnerabilities or could not complete; review the retained result." >&2
+          echo "The dependency audit found vulnerabilities or could not complete; review the retained evidence." >&2
           exit 1
